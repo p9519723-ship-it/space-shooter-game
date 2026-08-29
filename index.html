@@ -33,7 +33,8 @@
         <canvas id="gameCanvas" width="800" height="600"></canvas>
 
         <div class="controls">
-            <p>⬅️ ➡️ = Movimiento | ESPACIO = Disparar</p>
+            <p id="controlsText">⬅️ ➡️ = Movimiento | ESPACIO = Disparar</p>
+            <p id="mobileHint" style="display:none; font-size: 0.9em; margin-top: 10px;">📱 Toca izquierda/derecha para mover | ¡Disparo automático!</p>
         </div>
 
         <div id="gameOver" class="modal hidden">
@@ -59,9 +60,16 @@
                 <p>Un emocionante juego de naves espaciales</p>
                 <div class="instructions">
                     <h3>Controles:</h3>
-                    <ul>
+                    <ul id="instructionsList">
                         <li>⬅️ ➡️ Flechas = Movimiento Horizontal</li>
                         <li>ESPACIO = Disparar</li>
+                        <li>P = Pausa/Reanudar</li>
+                    </ul>
+                    <h3 id="mobileTitle" style="display:none;">📱 Controles Táctiles:</h3>
+                    <ul id="mobileInstructions" style="display:none;">
+                        <li>Toca la parte izquierda para mover a la izquierda</li>
+                        <li>Toca la parte derecha para mover a la derecha</li>
+                        <li>¡El disparo es automático!</li>
                         <li>P = Pausa/Reanudar</li>
                     </ul>
                     <h3>Objetivo:</h3>
@@ -85,5 +93,28 @@
     </div>
 
     <script src="game.js"></script>
+    <script>
+        // Detectar si es dispositivo móvil
+        function isMobileDevice() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        window.addEventListener('load', () => {
+            const isMobile = isMobileDevice();
+            const controlsText = document.getElementById('controlsText');
+            const mobileHint = document.getElementById('mobileHint');
+            const instructionsList = document.getElementById('instructionsList');
+            const mobileInstructions = document.getElementById('mobileInstructions');
+            const mobileTitle = document.getElementById('mobileTitle');
+
+            if (isMobile) {
+                controlsText.style.display = 'none';
+                mobileHint.style.display = 'block';
+                instructionsList.style.display = 'none';
+                mobileTitle.style.display = 'block';
+                mobileInstructions.style.display = 'block';
+            }
+        });
+    </script>
 </body>
 </html>
