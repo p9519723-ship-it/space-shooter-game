@@ -15,6 +15,13 @@ let gameObjects = {
     enemyBullets: []
 };
 
+// Controles táctiles
+let touchControls = {
+    leftPressed: false,
+    rightPressed: false,
+    autoShoot: true
+};
+
 // Configuración de niveles
 const levelConfigs = {
     1: { enemyCount: 5, enemySpeed: 2, enemyShootChance: 0.01 },
@@ -24,7 +31,83 @@ const levelConfigs = {
     5: { enemyCount: 20, enemySpeed: 4, enemyShootChance: 0.03 }
 };
 
-// Clase Nave del Jugador
+// Sistema de Sonido con síntesis de audio
+class SoundManager {
+    constructor() {
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+
+    // Sonido de disparo del jugador
+    playShoot() {
+        const now = this.audioContext.currentTime;
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(this.audioContext.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(300, now + 0.05);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+        osc.start(now);
+        osc.stop(now + 0.05);
+    }
+
+    // Sonido de explosión (enemigo destruido)
+    playExplosion() {
+        const now = this.audioContext.currentTime;
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(this.audioContext.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.15);
+    }
+
+    // Sonido de daño (jugador golpeado)
+    playDamage() {
+        const now = this.audioContext.currentTime;
+        const osc = this.audioContext.createOscillator();
+        const gain = this.audioContext.createGain();
+        osc.connect(gain);
+        gain.connect(this.audioContext.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(75, now + 0.2);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now);
+        osc.stop(now + 0.2);
+    }
+
+    // Sonido de nivel completado
+    playLevelUp() {
+        const now = this.audioContext.currentTime;
+        const notes = [523.25, 659.25, 783.99]; // Do, Mi, Sol
+        
+        notes.forEach((freq, index) => {
+            const osc = this.audioContext.createOscillator();
+            const gain = this.audioContext.createGain();
+            osc.connect(gain);
+            gain.connect(this.audioContext.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + index * 0.1);
+            gain.gain.setValueAtTime(0.2, now + index * 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + index * 0.1 + 0.15);
+            osc.start(now + index * 0.1);
+            osc.stop(now + index * 0.1 + 0.15);
+        });
+    }
+}
+
+const soundManager = new SoundManager();
+
+// Clase Nave del Jugador (Forma de Avión)
 class Player {
     constructor() {
         this.width = 40;
@@ -48,27 +131,51 @@ class Player {
     }
 
     draw() {
-        // Cuerpo de la nave
+        const centerX = this.x + this.width / 2;
+        const centerY = this.y + this.height / 2;
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        
+        // Dibujar avión (forma estilizada)
         ctx.fillStyle = '#00ff00';
         ctx.beginPath();
-        ctx.moveTo(this.x + this.width / 2, this.y);
-        ctx.lineTo(this.x + this.width, this.y + this.height);
-        ctx.lineTo(this.x + this.width - 10, this.y + this.height);
-        ctx.lineTo(this.x + 10, this.y + this.height);
-        ctx.lineTo(this.x, this.y + this.height);
-        ctx.lineTo(this.x + this.width / 2, this.y);
+        
+        // Fuselaje principal (cuerpo del avión)
+        ctx.moveTo(0, -15);      // Punta frontal
+        ctx.lineTo(8, -5);       // Derecha punta
+        ctx.lineTo(10, 5);       // Ala derecha
+        ctx.lineTo(8, 15);       // Cola derecha
+        ctx.lineTo(-8, 15);      // Cola izquierda
+        ctx.lineTo(-10, 5);      // Ala izquierda
+        ctx.lineTo(-8, -5);      // Izquierda punta
+        ctx.closePath();
         ctx.fill();
 
-        // Brillo
+        // Alas más definidas
         ctx.strokeStyle = '#00ff00';
         ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-10, 0);
+        ctx.lineTo(-15, 3);
+        ctx.moveTo(10, 0);
+        ctx.lineTo(15, 3);
         ctx.stroke();
+
+        // Brillo/destello
+        ctx.fillStyle = 'rgba(0, 255, 0, 0.5)';
+        ctx.beginPath();
+        ctx.arc(0, -8, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
     }
 
     shoot() {
         if (this.canShoot) {
             const bullet = new Bullet(this.x + this.width / 2 - 2, this.y, true);
             gameObjects.bullets.push(bullet);
+            soundManager.playShoot();
             this.canShoot = false;
             setTimeout(() => {
                 this.canShoot = true;
@@ -132,7 +239,7 @@ class Bullet {
     }
 }
 
-// Clase Enemigo
+// Clase Enemigo (Forma de Avión Rojo)
 class Enemy {
     constructor(x, y) {
         this.x = x;
@@ -168,20 +275,45 @@ class Enemy {
     }
 
     draw() {
-        // Cuerpo enemigo
+        const centerX = this.x + this.width / 2;
+        const centerY = this.y + this.height / 2;
+
+        ctx.save();
+        ctx.translate(centerX, centerY);
+
+        // Dibujar avión enemigo (rojo, apuntando hacia abajo)
         ctx.fillStyle = '#ff0000';
         ctx.beginPath();
-        ctx.moveTo(this.x, this.y + this.height);
-        ctx.lineTo(this.x + this.width / 2, this.y);
-        ctx.lineTo(this.x + this.width, this.y + this.height);
-        ctx.lineTo(this.x + this.width - 8, this.y + this.height);
-        ctx.lineTo(this.x + 8, this.y + this.height);
+        
+        // Fuselaje
+        ctx.moveTo(0, 15);       // Punta frontal (abajo)
+        ctx.lineTo(8, 5);        // Derecha punta
+        ctx.lineTo(10, -5);      // Ala derecha
+        ctx.lineTo(8, -15);      // Cola derecha
+        ctx.lineTo(-8, -15);     // Cola izquierda
+        ctx.lineTo(-10, -5);     // Ala izquierda
+        ctx.lineTo(-8, 5);       // Izquierda punta
+        ctx.closePath();
         ctx.fill();
 
-        // Ojos
+        // Alas
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-10, 0);
+        ctx.lineTo(-15, -3);
+        ctx.moveTo(10, 0);
+        ctx.lineTo(15, -3);
+        ctx.stroke();
+
+        // Ojos enemigos (como indicador de IA)
         ctx.fillStyle = '#ffff00';
-        ctx.fillRect(this.x + 8, this.y + 8, 4, 4);
-        ctx.fillRect(this.x + this.width - 12, this.y + 8, 4, 4);
+        ctx.beginPath();
+        ctx.arc(-4, 0, 2, 0, Math.PI * 2);
+        ctx.arc(4, 0, 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
     }
 
     shoot() {
@@ -218,7 +350,7 @@ function checkCollisions() {
                 gameObjects.enemies.splice(j, 1);
                 score += 100;
                 updateScore();
-                playExplosion();
+                soundManager.playExplosion();
                 break;
             }
         }
@@ -231,7 +363,7 @@ function checkCollisions() {
             gameObjects.enemyBullets.splice(i, 1);
             lives--;
             updateLives();
-            playDamage();
+            soundManager.playDamage();
             if (lives <= 0) {
                 endGame(false);
             }
@@ -243,7 +375,7 @@ function checkCollisions() {
         if (checkCollision(enemy.getCollisionBox(), gameObjects.player.getCollisionBox())) {
             lives--;
             updateLives();
-            playDamage();
+            soundManager.playDamage();
             // Eliminar el enemigo
             gameObjects.enemies.splice(gameObjects.enemies.indexOf(enemy), 1);
             if (lives <= 0) {
@@ -268,37 +400,6 @@ function updateEnemiesCount() {
 
 function updateLevel() {
     document.getElementById('level').textContent = currentLevel;
-}
-
-// Sonidos (usando síntesis web audio)
-const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-function playExplosion() {
-    const now = audioContext.currentTime;
-    const osc = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    osc.connect(gain);
-    gain.connect(audioContext.destination);
-    osc.frequency.setValueAtTime(150, now);
-    osc.frequency.exponentialRampToValueAtTime(0.01, now + 0.1);
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
-    osc.start(now);
-    osc.stop(now + 0.1);
-}
-
-function playDamage() {
-    const now = audioContext.currentTime;
-    const osc = audioContext.createOscillator();
-    const gain = audioContext.createGain();
-    osc.connect(gain);
-    gain.connect(audioContext.destination);
-    osc.frequency.setValueAtTime(80, now);
-    osc.frequency.exponentialRampToValueAtTime(40, now + 0.2);
-    gain.gain.setValueAtTime(0.3, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-    osc.start(now);
-    osc.stop(now + 0.2);
 }
 
 // Inicializar nivel
@@ -329,6 +430,11 @@ function gameLoop() {
     if (!gamePaused && gameRunning) {
         // Actualizar jugador
         gameObjects.player.update();
+
+        // Auto disparo en móvil
+        if (touchControls.autoShoot) {
+            gameObjects.player.shoot();
+        }
 
         // Actualizar balas del jugador
         for (let i = gameObjects.bullets.length - 1; i >= 0; i--) {
@@ -388,7 +494,7 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 
-// Controles del juego
+// ===== CONTROLES: Teclado =====
 document.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowLeft') {
         gameObjects.player.isMovingLeft = true;
@@ -418,6 +524,65 @@ document.addEventListener('keyup', (e) => {
     }
 });
 
+// ===== CONTROLES: Táctil (Teléfono) =====
+canvas.addEventListener('touchstart', (e) => {
+    const touches = e.touches;
+    for (let touch of touches) {
+        const rect = canvas.getBoundingClientRect();
+        const touchX = (touch.clientX - rect.left) * (canvas.width / rect.width);
+        
+        // Dividir pantalla en zonas
+        if (touchX < canvas.width / 3) {
+            gameObjects.player.isMovingLeft = true;
+        } else if (touchX > (canvas.width * 2) / 3) {
+            gameObjects.player.isMovingRight = true;
+        }
+    }
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    gameObjects.player.isMovingLeft = false;
+    gameObjects.player.isMovingRight = false;
+    
+    const touches = e.touches;
+    for (let touch of touches) {
+        const rect = canvas.getBoundingClientRect();
+        const touchX = (touch.clientX - rect.left) * (canvas.width / rect.width);
+        
+        if (touchX < canvas.width / 3) {
+            gameObjects.player.isMovingLeft = true;
+        } else if (touchX > (canvas.width * 2) / 3) {
+            gameObjects.player.isMovingRight = true;
+        }
+    }
+});
+
+canvas.addEventListener('touchend', () => {
+    gameObjects.player.isMovingLeft = false;
+    gameObjects.player.isMovingRight = false;
+});
+
+// Controles para mouse (escritorio)
+canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    
+    gameObjects.player.isMovingLeft = false;
+    gameObjects.player.isMovingRight = false;
+    
+    if (mouseX < canvas.width / 3) {
+        gameObjects.player.isMovingLeft = true;
+    } else if (mouseX > (canvas.width * 2) / 3) {
+        gameObjects.player.isMovingRight = true;
+    }
+});
+
+canvas.addEventListener('mouseleave', () => {
+    gameObjects.player.isMovingLeft = false;
+    gameObjects.player.isMovingRight = false;
+});
+
 // Funciones del juego
 function startGame() {
     document.getElementById('startScreen').classList.add('hidden');
@@ -439,6 +604,7 @@ function togglePause() {
 
 function levelUp() {
     gameRunning = false;
+    soundManager.playLevelUp();
     const levelMessage = document.getElementById('levelMessage');
     levelMessage.textContent = `¡Completaste el nivel ${currentLevel}! Puntuación: ${score}`;
     document.getElementById('levelUp').classList.remove('hidden');
